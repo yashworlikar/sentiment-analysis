@@ -1,157 +1,123 @@
 import gradio as gr
-import torch
 from transformers import pipeline
 from textblob import TextBlob
 import nltk
 from nltk.tokenize import word_tokenize
-from collections import Counter
-import emoji
-import re
-from typing import Dict, Tuple, List
+import matplotlib.pyplot as plt
 import numpy as np
 
 # Download required NLTK data
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
+nltk.download('punkt', quiet=True)
 
 class EnhancedSentimentAnalyzer:
     def __init__(self):
-        # Initialize sentiment pipeline
+        # Initialize sentiment pipeline without top_k parameter
         self.sentiment_pipeline = pipeline(
             "sentiment-analysis",
-            model="distilbert-base-uncased-finetuned-sst-2-english",
-            top_k=None
+            model="distilbert-base-uncased-finetuned-sst-2-english"
         )
         
-        # Emoji mappings for sentiment visualization
+        # Emoji mappings
         self.sentiment_emojis = {
             'POSITIVE': '😊',
             'NEGATIVE': '😔',
             'NEUTRAL': '😐'
         }
-        
-        # Create emotion color mappings
-        self.emotion_colors = {
-            'joy': '#FFD700',      # Gold
-            'sadness': '#4169E1',  # Royal Blue
-            'anger': '#FF4500',    # Red Orange
-            'fear': '#800080',     # Purple
-            'surprise': '#32CD32', # Lime Green
-            'neutral': '#808080'   # Gray
-        }
 
-    def analyze_text_style(self, text: str) -> Dict:
+    def analyze_text_style(self, text: str) -> dict:
         """Analyze writing style and patterns"""
         words = word_tokenize(text)
         
-        # Basic text statistics
-        avg_word_length = sum(len(word) for word in words) / len(words) if words else 0
-        
-        # Count punctuation
-        punctuation_count = sum(1 for char in text if char in '.,!?;:')
-        
-        # Count emojis
-        emoji_count = sum(char in emoji.EMOJI_DATA for char in text)
+        # Calculate metrics
+        word_count = len(words)
+        avg_word_length = sum(len(word) for word in words) / word_count if word_count else 0
+        sentence_count = text.count('.') + text.count('!') + text.count('?')
+        sentence_count = max(1, sentence_count)  # Ensure no division by zero
         
         return {
+            'word_count': word_count,
             'avg_word_length': round(avg_word_length, 2),
-            'punctuation_density': round(punctuation_count / len(text) * 100, 2),
-            'emoji_density': round(emoji_count / len(text) * 100, 2)
+            'words_per_sentence': round(word_count / sentence_count, 2)
         }
 
-    def get_emotional_tone(self, sentiment_score: float) -> str:
+    def get_emotional_tone(self, score: float) -> str:
         """Convert sentiment score to emotional tone"""
-        if sentiment_score >= 0.75:
+        if score >= 0.75:
             return 'Very Positive'
-        elif sentiment_score >= 0.5:
+        elif score >= 0.5:
             return 'Moderately Positive'
-        elif sentiment_score > 0.3:
+        elif score >= 0:
             return 'Slightly Positive'
-        elif sentiment_score > -0.3:
-            return 'Neutral'
-        elif sentiment_score > -0.5:
+        elif score >= -0.5:
             return 'Slightly Negative'
-        elif sentiment_score > -0.75:
-            return 'Moderately Negative'
         else:
             return 'Very Negative'
 
-    def analyze_sentiment(self, text: str) -> Tuple[Dict, str, Dict]:
-        # Get base sentiment
-        sentiment = self.sentiment_pipeline(text)[0]
-        score = sentiment['score']
-        label = sentiment['label']
+    def analyze_sentiment(self, text: str):
+        # Get base sentiment - now correctly handling the pipeline output
+        sentiment_result = self.sentiment_pipeline(text)[0]  # Get first result
+        label = sentiment_result['label']
+        score = sentiment_result['score']
         
-        # Get detailed analysis
+        # Get additional analysis
         blob = TextBlob(text)
-        detailed_score = blob.sentiment.polarity
+        polarity = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
         
         # Get text style analysis
         style_metrics = self.analyze_text_style(text)
         
-        # Prepare the visualization data
-        emotional_tone = self.get_emotional_tone(detailed_score)
-        
-        # Create response data
+        # Prepare results
         analysis_results = {
-            'primary_sentiment': label,
+            'sentiment': label,
             'confidence': f"{score:.2%}",
-            'emotional_tone': emotional_tone,
-            'subjectivity': f"{blob.sentiment.subjectivity:.2%}",
-            'style_metrics': style_metrics
+            'emotional_tone': self.get_emotional_tone(polarity),
+            'subjectivity': f"{subjectivity:.2%}",
+            'text_metrics': style_metrics
         }
         
-        # Create visual feedback
-        emoji_feedback = self.sentiment_emojis.get(label, '😐')
-        
-        # Prepare chart data
+        # Prepare visualization data
         chart_data = {
-            'labels': ['Negativity', 'Neutrality', 'Positivity'],
-            'values': [
-                max(0, -detailed_score),
-                1 - abs(detailed_score),
-                max(0, detailed_score)
-            ]
+            'positivity': max(0, polarity),
+            'negativity': abs(min(0, polarity)),
+            'neutrality': 1 - abs(polarity)
         }
         
-        return analysis_results, emoji_feedback, chart_data
+        return analysis_results, self.sentiment_emojis[label], chart_data
 
 def create_interface():
     analyzer = EnhancedSentimentAnalyzer()
     
-    with gr.Blocks(theme=gr.themes.Soft()) as demo:
-        gr.Markdown(
-            """
-            # 🎭 Enhanced Sentiment Explorer
-            Discover the emotional depth of your text with advanced analysis
-            """
-        )
+    with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue")) as demo:
+        gr.Markdown("""
+        # 🎭 Sentiment Analysis Plus
+        ## Discover the emotional depth of your text
+        """)
         
         with gr.Row():
             with gr.Column(scale=2):
                 input_text = gr.Textbox(
-                    label="Enter your text",
-                    placeholder="Type something to analyze...",
+                    label="Input Text",
+                    placeholder="Type or paste your text here...",
                     lines=5
                 )
-                analyze_btn = gr.Button("Analyze Sentiment", variant="primary")
+                analyze_btn = gr.Button("Analyze", variant="primary")
             
             with gr.Column(scale=1):
                 emoji_output = gr.Textbox(
-                    label="Quick Sentiment",
+                    label="Mood",
                     lines=1,
-                    show_label=False
+                    show_label=True
                 )
         
         with gr.Row():
             with gr.Column():
-                sentiment_output = gr.JSON(
-                    label="Detailed Analysis",
+                results_output = gr.JSON(
+                    label="Analysis Results"
                 )
-            
             with gr.Column():
-                chart = gr.Plot(label="Sentiment Distribution")
-        
+                plot_output = gr.Plot(label="Sentiment Distribution")
+
         def process_text(text):
             if not text.strip():
                 return (
@@ -163,19 +129,21 @@ def create_interface():
             results, emoji, chart_data = analyzer.analyze_sentiment(text)
             
             # Create visualization
-            import matplotlib.pyplot as plt
-            
             fig, ax = plt.subplots(figsize=(6, 4))
-            bars = ax.bar(
-                chart_data['labels'],
-                chart_data['values'],
-                color=['#FF6B6B', '#4ECDC4', '#45B7D1']
-            )
+            categories = ['Positive', 'Negative', 'Neutral']
+            values = [
+                chart_data['positivity'],
+                chart_data['negativity'],
+                chart_data['neutrality']
+            ]
+            
+            colors = ['#2ecc71', '#e74c3c', '#95a5a6']
+            bars = ax.bar(categories, values, color=colors)
             
             ax.set_ylim(0, 1)
             ax.set_title('Sentiment Distribution')
             
-            # Add value labels on top of bars
+            # Add value labels
             for bar in bars:
                 height = bar.get_height()
                 ax.text(
@@ -186,24 +154,23 @@ def create_interface():
                     va='bottom'
                 )
             
+            plt.close(fig)  # Prevent display in notebook if running there
             return results, emoji, fig
         
         analyze_btn.click(
             process_text,
             inputs=[input_text],
-            outputs=[sentiment_output, emoji_output, chart]
+            outputs=[results_output, emoji_output, plot_output]
         )
         
-        gr.Markdown(
-            """
-            ### 📊 Understanding the Analysis
-            - **Primary Sentiment**: Overall emotional direction
-            - **Confidence**: How certain the model is about its prediction
-            - **Emotional Tone**: Detailed breakdown of the emotional content
-            - **Subjectivity**: How opinionated the text is
-            - **Style Metrics**: Writing style analysis
-            """
-        )
+        gr.Markdown("""
+        ### 📊 Understanding Your Results
+        - **Sentiment**: Overall emotional direction of the text
+        - **Confidence**: How certain the model is about its analysis
+        - **Emotional Tone**: Detailed breakdown of the emotional content
+        - **Subjectivity**: How opinionated vs. factual the text is
+        - **Text Metrics**: Statistical analysis of your writing style
+        """)
     
     return demo
 
