@@ -1,0 +1,7 @@
+gradio
+torch
+transformers
+textblob
+nltk
+emoji
+numpy
