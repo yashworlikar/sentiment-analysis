@@ -149,6 +149,7 @@ def create_interface():
                 inputs=[input_text],
                 outputs=[results_output, emoji_output, plot_output],
                 fn=process_review,
+                cache_examples=False,
                 run_on_click=  True
     )       
 
