@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Download required NLTK data
-nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)
 
 class EnhancedSentimentAnalyzer:
     def __init__(self):
