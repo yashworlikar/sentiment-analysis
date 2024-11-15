@@ -5,3 +5,4 @@ textblob
 nltk
 emoji
 numpy
+matplotlib
