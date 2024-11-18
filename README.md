@@ -11,4 +11,4 @@ license: mit
 short_description: Sentiment analysis
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+A simple sentiment Analyzer for e-commerce products
